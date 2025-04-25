@@ -100,6 +100,19 @@ class GameClient:
             self.error_message = "Connection timeout: Server not responding"
             return False
 
+        except socket.error as e:
+            err_code = e.args[0]
+            if err_code == 10061:  # Connection refused
+                self.logger.info(
+                    f"Connection refused by {self.host}:{self.port} - Make sure the server is running and the port is open")
+                self.server_error = True
+                self.error_message = f"Connection refused by {self.host}:{self.port}. Make sure the server is running and the port is open in the firewall."
+            else:
+                self.logger.info(f'Socket error connecting to server: {str(e)}')
+                self.server_error = True
+                self.error_message = f"Error connecting to server: {str(e)}"
+            return False
+
         except Exception as e:
             self.logger.info(f'Error connection to server: {str(e)}')
             self.server_error = True
@@ -616,14 +629,21 @@ if __name__ == '__main__':
     port = 5555
     if len(sys.argv) > 1:
         host = sys.argv[1]
-    if len(sys.argv) > 2:
-        try:
-            port = int(sys.argv[2])
-        except ValueError:
-            print(f'Invalid port number: {sys.argv[2]}, using default port 5555')
-    print(f'Connecting to server at {host}:{port}')
+    else:
+        import tkinter as tk
+        from tkinter import simpledialog
 
-    client = GameClient(host='localhost', port=5555)
+        root = tk.Tk()
+        root.withdraw()
+        server_ip = simpledialog.askstring("Server IP",
+                                           "Enter server IP address:\n(leave empty for localhost)")
+
+        if server_ip and server_ip.strip():
+            host = server_ip.strip()
+
+    print(f"Connecting to server at {host}:{port}")
+
+    client = GameClient(host=host, port=port)
     client.run()
 
 
