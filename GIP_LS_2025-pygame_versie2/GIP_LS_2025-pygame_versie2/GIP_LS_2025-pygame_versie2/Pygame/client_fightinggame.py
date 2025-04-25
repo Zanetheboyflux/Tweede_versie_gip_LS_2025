@@ -159,6 +159,13 @@ class GameClient:
                 else:
                     self.game_state = response
 
+                for player_num, player_data in self.game_state.get('players', {}):
+                    if player_data.get('is_dead', False):
+                        opponent_num = 1 if int(player_num) == 2 else 2
+                        self.game_over = True
+                        self.winner = opponent_num
+                        self.logger.info(f'Detected game over from state: Winner: {player_num}')
+
                 opponent_num = 2 if self.player_num == 1 else 1
                 if (opponent_num in self.game_state['players'] and
                     self.game_state['players'][opponent_num].get('character') and
@@ -377,7 +384,7 @@ class GameClient:
         overlay.set_alpha(180)
         self.screen.blit(overlay, (0, 0))
 
-        winner_color = self.GREEN if self.winner == in(self.player_num) else self.RED
+        winner_color = self.GREEN if self.winner == int(self.player_num) else self.RED
 
         border_width, border_height = 600, 300
         border_x = (self.SCREEN_WIDTH - border_width) // 2
