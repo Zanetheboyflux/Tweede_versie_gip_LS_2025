@@ -232,7 +232,12 @@ class GameServer:
             self.logger.info('Match ended due to player disconnect')
 
     def update_game_state(self):
+        last_broadcast_time = time.time()
+        broadcast_interval = 0.03
+
         while True:
+            current_time = time.time()
+
             if not self.match_started and self.game_state['ready'] >= 2:
                 self.logger.info('Both players ready, starting match!')
                 self.match_started = True
@@ -244,7 +249,10 @@ class GameServer:
                     }))
 
             if self.match_started:
-                self.broadcast_game_state()
+                if current_time - last_broadcast_time >= broadcast_interval:
+                    self.broadcast_game_state()
+                    last_broadcast_time = current_time
+
                 game_over = False
                 winner = None
 
@@ -257,20 +265,28 @@ class GameServer:
                 if game_over:
                     self.logger.info(f'Game_over! Player {winner} wins!')
                     for client_socket in self.clients.values():
-                        client_socket.send(pickle.dumps({
-                            "status": 'game_over',
-                            'winner': winner,
-                            'game_state': self.game_state
-                        }))
+                        try:
+                            client_socket.send(pickle.dumps({
+                                "status": 'game_over',
+                                'winner': winner,
+                                'game_state': self.game_state
+                            }))
+                        except Exception as e:
+                            self.logger.error(f'Error sending game_over: {e}')
 
                     self.match_started = False
                     self.game_state['ready'] = 0
 
-                    for player in self.game_state['players'].values():
-                        player.update({'health': 100, 'is_dead': False, 'x': 300 if player_num == 1 else 700, 'y': 580})
+                    for player_num, player in self.game_state['players'].items():
+                        player.update({
+                            'health': 100,
+                            'is_dead': False,
+                            'x': 300 if player_num == 1 else 700,
+                            'y': 580
+                        })
                     self.logger.info('Game reset for new match')
 
-            time.sleep(0.05)
+            time.sleep(0.01)
 
     def close_server(self):
         self.logger.info('Closing server')

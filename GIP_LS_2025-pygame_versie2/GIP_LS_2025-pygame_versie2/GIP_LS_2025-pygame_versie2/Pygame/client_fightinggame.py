@@ -149,6 +149,7 @@ class GameClient:
                     elif response['status'] == 'game_over':
                         self.game_over = True
                         self.winner = response['winner']
+                        self.logger.info(f'Game over received! Winner: {self.winner}')
                     elif response['status'] == 'server_error':
                         self.server_error = True
                         self.error_message = response.get('message', "Server reported an error")
@@ -373,16 +374,30 @@ class GameClient:
     def draw_game_over_screen(self):
         overlay = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         overlay.fill(self.BLACK)
-        overlay.set_alpha(128)
+        overlay.set_alpha(180)
         self.screen.blit(overlay, (0, 0))
+
+        winner_color = self.GREEN if self.winner == in(self.player_num) else self.RED
+
+        border_width, border_height = 600, 300
+        border_x = (self.SCREEN_WIDTH - border_width) // 2
+        border_y = (self.SCREEN_HEIGHT - border_height) // 2
+        pygame.draw.rect(self.screen, self.DARK_BLUE,
+                         (border_x, border_y, border_width, border_height))
+        pygame.draw.rect(self.screen, winner_color,
+                         (border_x, border_y, border_width, border_height), 6)
+
+        game_over_text = self.font.render("GAME OVER", True, self.WHITE)
+        game_over_rect = game_over_text.get_rect(center=(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 2 - 70))
+        self.screen.blit(game_over_text, game_over_rect)
 
         if self.winner:
             if self.winner == int(self.player_num):
                 winner_text = "YOU WIN!"
             else:
-                winner_text = "YOU LOSE!"
+                winner_text = 'YOU LOSE!'
 
-            text = self.font.render(winner_text, True, self.GREEN)
+            text = self.font.render(winner_text, True, winner_color)
             text_rect = text.get_rect(center=(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 2))
             self.screen.blit(text, text_rect)
 
@@ -429,7 +444,7 @@ class GameClient:
             self.opponent_sprite.fill((255, 0, 0))
 
         opponent_num = 2 if self.player_num == 1 else 1
-        if opponent_num in self.game_state['players'] and self.game_state['players'][opponent_num]['character']:
+        if opponent_num in self.game_state['players'] and self.game_state['players'][opponent_num].get('character'):
             opponent_character = self.game_state['players'][opponent_num]['character']
             if not self.opponent_character or self.opponent_character != opponent_character:
                 self.opponent_character = opponent_character
@@ -446,8 +461,12 @@ class GameClient:
         player_width = 50
         player_feet_offset = 10
         player_data = None
+        last_action_time = time.time()
+        action_throttle = 0.05
 
         while running:
+            frame_start_time = time.time()
+
             for event in pygame.event.get():
                 if event.type == QUIT:
                     running = False
@@ -479,6 +498,8 @@ class GameClient:
                 keys = pygame.key.get_pressed()
 
                 if self.player_num not in self.game_state['players']:
+                    pygame.display.flip()
+                    self.clock.tick(60)
                     continue
 
                 player_data = self.game_state['players'][self.player_num]
@@ -486,113 +507,116 @@ class GameClient:
                 if 'velocity_y' not in player_data:
                     player_data['velocity_y'] = 0
 
-                action = {}
+                if time.time() - last_action_time >= action_throttle:
+                    action = {}
 
-                if self.player_num == 1:
-                    left_key = K_q
-                    right_key = K_d
-                    jump_key = K_z
-                    attack_key = K_a
-                    special_attack_key = K_e
-                else:
-                    left_key = K_LEFT
-                    right_key = K_RIGHT
-                    jump_key = K_UP
-                    attack_key = K_k
-                    special_attack_key = K_l
+                    if self.player_num == 1:
+                        left_key = K_q
+                        right_key = K_d
+                        jump_key = K_z
+                        attack_key = K_a
+                        special_attack_key = K_e
+                    else:
+                        left_key = K_LEFT
+                        right_key = K_RIGHT
+                        jump_key = K_UP
+                        attack_key = K_k
+                        special_attack_key = K_l
 
-                if keys[left_key]:
-                    if 'x' in player_data:
-                        player_data['x'] = max(50, player_data['x']-5)
-                        action['x'] = player_data['x']
-                        action['facing_right'] = False
+                    if keys[left_key]:
+                        if 'x' in player_data:
+                            player_data['x'] = max(50, player_data['x']-5)
+                            action['x'] = player_data['x']
+                            action['facing_right'] = False
 
-                elif keys[right_key]:
-                    if 'x' in player_data:
-                        player_data['x'] = min(950, player_data['x']+5)
-                        action['x'] = player_data['x']
-                        action['facing_right'] = True
+                    elif keys[right_key]:
+                        if 'x' in player_data:
+                            player_data['x'] = min(950, player_data['x']+5)
+                            action['x'] = player_data['x']
+                            action['facing_right'] = True
 
-                on_platform, platform_y = self.check_on_platform(
-                    player_data.get('x', 0),
-                    player_data.get('y', 0),
-                    player_feet_offset
-                )
+                    on_platform, platform_y = self.check_on_platform(
+                        player_data.get('x', 0),
+                        player_data.get('y', 0),
+                        player_feet_offset
+                    )
 
-                if keys[jump_key] and on_platform and not is_jumping:
-                    is_jumping = True
-                    player_data['velocity_y'] = -jump_strength
-                    jump_velocity = -jump_strength
-                    action['is_jumping'] = True
-                    action['velocity'] = player_data['velocity_y']
+                    if keys[jump_key] and on_platform and not is_jumping:
+                        is_jumping = True
+                        player_data['velocity_y'] = -jump_strength
+                        jump_velocity = -jump_strength
+                        action['is_jumping'] = True
+                        action['velocity'] = player_data['velocity_y']
 
-                if is_jumping or not on_platform:
-                    player_data['y'] += jump_velocity
-                    jump_velocity += gravity
-                    player_data['velocity_y'] = jump_velocity
-                    action['y'] = player_data['y']
-                    action['velocity_y'] = player_data['velocity_y']
+                    if is_jumping or not on_platform:
+                        player_data['y'] += jump_velocity
+                        jump_velocity += gravity
+                        player_data['velocity_y'] = jump_velocity
+                        action['y'] = player_data['y']
+                        action['velocity_y'] = player_data['velocity_y']
 
-                on_platform_now, landing_y = self.check_on_platform(
-                    player_data.get('x', 0),
-                    player_data.get('y', 0),
-                    player_feet_offset
-                )
+                    on_platform_now, landing_y = self.check_on_platform(
+                        player_data.get('x', 0),
+                        player_data.get('y', 0),
+                        player_feet_offset
+                    )
 
-                if not on_platform:
-                    player_data['y'] += gravity
-                    player_data['velocity_y'] = player_data['velocity_y']
-                    action['velocity_y'] = player_data['velocity_y']
+                    if not on_platform:
+                        player_data['y'] += gravity
+                        player_data['velocity_y'] = player_data['velocity_y']
+                        action['velocity_y'] = player_data['velocity_y']
 
-                if on_platform_now and jump_velocity > 0:
-                    is_jumping = False
-                    jump_velocity = 0
-                    player_data['velocity_y'] = 0
-                    player_data['y'] = landing_y
-                    action['y'] = landing_y
-                    action['is_jumping'] = False
-                    action['velocity_y'] = 0
+                    if on_platform_now and jump_velocity > 0:
+                        is_jumping = False
+                        jump_velocity = 0
+                        player_data['velocity_y'] = 0
+                        player_data['y'] = landing_y
+                        action['y'] = landing_y
+                        action['is_jumping'] = False
+                        action['velocity_y'] = 0
 
-                if self.check_death(player_data.get('y', 0)):
-                    action['died'] = True
-                    self.send_data({'player_died': True})
-                    self.game_over = True
+                    if self.check_death(player_data.get('y', 0)):
+                        action['died'] = True
+                        self.send_data({'player_died': True})
 
-                if keys[attack_key] and current_time - last_attack_time > 500:
-                    action['is_attacking'] = True
-                    action['attack'] = True
-                    action['damage'] = 10
-                    action['attack_range'] = 150
-                    last_attack_time = current_time
-
-                if keys[special_attack_key] and current_time - last_special_attack_time:
-                    action['is_special_attacking'] = True
-                    action['attack'] = True
-
-                    if self.character == 'Lucario':
-                        health_percent = player_data.get('health', 100) / 100
-                        action['damage'] = 25 * (1 + (1 - health_percent))
-                        action['attack_range'] = 200
-                    elif self.character == 'Mewtwo':
-                        action['damage'] = 30
-                        action['attack_range'] = 300
-                    elif self.character == 'Zeraora':
-                        action['damage'] = 20
+                    if keys[attack_key] and current_time - last_attack_time > 500:
+                        action['is_attacking'] = True
+                        action['attack'] = True
+                        action['damage'] = 10
                         action['attack_range'] = 150
-                    elif self.character == 'Cinderace':
-                        opponent_num = 2 if self.player_num == 1 else 1
-                        opponent_data = self.game_state['players'].get(opponent_num, {})
-                        if opponent_data:
-                            distance = abs(player_data.get('x', 0) - opponent_data.get('x', 0))
-                            action['damage'] = 22 * (1 + distance / 250)
-                            action['attack_range'] = 250
+                        last_attack_time = current_time
 
-                    last_special_attack_time = current_time
+                    if keys[special_attack_key] and current_time - last_special_attack_time:
+                        action['is_special_attacking'] = True
+                        action['attack'] = True
 
-                if action and self.connected:
-                    self.send_data({'player_action': action})
+                        if self.character == 'Lucario':
+                            health_percent = player_data.get('health', 100) / 100
+                            action['damage'] = 25 * (1 + (1 - health_percent))
+                            action['attack_range'] = 200
+                        elif self.character == 'Mewtwo':
+                            action['damage'] = 30
+                            action['attack_range'] = 300
+                        elif self.character == 'Zeraora':
+                            action['damage'] = 20
+                            action['attack_range'] = 150
+                        elif self.character == 'Cinderace':
+                            opponent_num = 2 if self.player_num == 1 else 1
+                            opponent_data = self.game_state['players'].get(opponent_num, {})
+                            if opponent_data:
+                                distance = abs(player_data.get('x', 0) - opponent_data.get('x', 0))
+                                action['damage'] = 22 * (1 + distance / 250)
+                                action['attack_range'] = 250
+
+                        last_special_attack_time = current_time
+
+                    if action and self.connected:
+                        self.send_data({'player_action': action})
 
             pygame.display.flip()
+            frame_time = time.time() - frame_start_time
+            wait_time = max(0, 1/60 - frame_time)
+            time.sleep(wait_time)
             self.clock.tick(60)
 
 
