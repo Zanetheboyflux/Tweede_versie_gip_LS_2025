@@ -160,15 +160,16 @@ class GameClient:
                         pass
                 else:
                     self.game_state = response
+                    self.logger.info(f'Response in else: {response}')
 
-                for player_num, player_data in self.game_state.get('players', {}):
-                    self.logger.info(f'player_num: {player_num}')
-                    self.logger.info(f'player_data: {player_data}')
-                    if player_data.get('is_dead', False):
-                        opponent_num = 1 if player_num == 2 else 2
-                        self.game_over = True
-                        self.winner = opponent_num
-                        self.logger.info(f'Detected game over from state: Winner: {player_num}')
+                    for player_num, player_data in self.game_state.get('players', {}):
+                        self.logger.info(f'player_num: {player_num}')
+                        self.logger.info(f'player_data: {player_data}')
+                        if player_data.get('is_dead', False):
+                            opponent_num = 1 if int(self.player_num) == 2 else 2
+                            self.game_over = True
+                            self.winner = opponent_num
+                            self.logger.info(f'Detected game over from state: Winner: {player_num}')
 
                 opponent_num = 2 if self.player_num == 1 else 1
                 if (opponent_num in self.game_state['players'] and
