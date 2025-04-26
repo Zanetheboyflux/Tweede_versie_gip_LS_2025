@@ -132,7 +132,8 @@ class GameClient:
         while self.connected:
             try:
                 data = self.client_socket.recv(4096)
-                self.logger.info(f'Data: {data}')
+                # self.logger.info(f'data: {data}')
+
                 if not data:
                     self.logger.info("Empty data received from server - disconnected")
                     self.server_error = True
@@ -141,7 +142,7 @@ class GameClient:
                     break
                 self.last_server_response = time.time()
                 response = pickle.loads(data)
-                self.logger.info(f'response: {response}')
+                # self.logger.info(f'response: {response}')
 
                 if 'status' in response:
                     if response['status'] == 'match_start':
@@ -160,7 +161,7 @@ class GameClient:
                         pass
                 else:
                     self.game_state = response
-                    self.logger.info(f'Response in else: {response}')
+                    # self.logger.info(f'Response in else: {response}')
 
                     players = self.game_state.get('players', {})
                     if isinstance(players, dict):
