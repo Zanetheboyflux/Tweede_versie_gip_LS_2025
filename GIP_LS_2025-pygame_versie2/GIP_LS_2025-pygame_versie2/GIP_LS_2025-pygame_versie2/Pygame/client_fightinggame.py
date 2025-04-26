@@ -18,6 +18,7 @@ class GameClient:
         self.host = host
         self.port = port
         self.client_socket = None
+        self.socket_buffer_size = 8192
         self.player_num = None
         self.character_name = None
         self.opponent_character = None
@@ -57,6 +58,7 @@ class GameClient:
 
         self.character_sprite = None
         self.opponent_sprite = None
+        self.sprite_cache = None
 
         self.heartbeat_thread = None
         self.last_server_response = time.time()
@@ -64,10 +66,15 @@ class GameClient:
         self.server_error = False
         self.error_message = None
 
+        self.state_processing_thread = None
+        self.state_queue = []
+        self.state_queue_lock = threading.Lock()
+
     def connect_to_server(self):
         try:
             self.logger.info(f'Attempting to connect to server at {self.host}:{self.port}')
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self.client_socket.settimeout(5)
             self.client_socket.connect((self.host, self.port))
             self.client_socket.settimeout(None)
@@ -117,7 +124,7 @@ class GameClient:
             self.logger.info(f'Error connection to server: {str(e)}')
             self.server_error = True
             self.error_message = f"Connection error: {str(e)}"
-            return False
+            pass 
 
     def check_server_heartbeat(self):
         while self.connected:
@@ -129,9 +136,10 @@ class GameClient:
             time.sleep(1)
 
     def receive_data(self):
+        buffer = b""
         while self.connected:
             try:
-                data = self.client_socket.recv(4096)
+                data = self.client_socket.recv(8192)
                 # self.logger.info(f'data: {data}')
 
                 if not data:
@@ -140,45 +148,55 @@ class GameClient:
                     self.error_message = "Server disconnected"
                     self.connected = False
                     break
-                self.last_server_response = time.time()
-                response = pickle.loads(data)
-                # self.logger.info(f'response: {response}')
 
-                if 'status' in response:
-                    if response['status'] == 'match_start':
-                        self.match_started = True
-                        self.game_state = response['game_state']
-                        self.init_platforms()
-                    elif response['status'] == 'game_over':
-                        self.game_over = True
-                        self.winner = response['winner']
-                        self.logger.info(f'Game over received! Winner: {self.winner}')
-                    elif response['status'] == 'server_error':
-                        self.server_error = True
-                        self.error_message = response.get('message', "Server reported an error")
-                        self.logger.info(f'Server error: {self.error_message}')
-                    elif response['status'] == 'heartbeat':
+                buffer += data
+                try:
+                    response = pickle.loads(buffer)
+                    buffer = b""
+
+                    self.last_server_response = time.time()
+
+                    if 'status' in response:
+                        if response['status'] == 'match_start':
+                            self.match_started = True
+                            self.game_state = response['game_state']
+                            self.init_platforms()
+                        elif response['status'] == 'game_over':
+                            self.game_over = True
+                            self.winner = response['winner']
+                            self.logger.info(f'Game over received! Winner: {self.winner}')
+                        elif response['status'] == 'server_error':
+                            self.server_error = True
+                            self.error_message = response.get('message', "Server reported an error")
+                            self.logger.info(f'Server error: {self.error_message}')
+                        elif response['status'] == 'heartbeat':
+                            pass
                         pass
-                else:
-                    self.game_state = response
-                    # self.logger.info(f'Response in else: {response}')
 
-                    players = self.game_state.get('players', {})
-                    if isinstance(players, dict):
-                        for player_num, player_data in players.items():
-                            if isinstance(player_data, dict) and player_data.get('is_dead', False):
-                                opponent_num = 1 if int(player_num) == 2 else 2
-                                self.game_over = True
-                                self.winner = opponent_num
-                                self.logger.info(f'Detected game over state! Winner: {self.winner}')
+                    else:
+                        self.game_state = response
+                        # self.logger.info(f'Response in else: {response}')
+                        players = self.game_state.get('players', {})
+                        if isinstance(players, dict):
+                            for player_num, player_data in players.items():
+                                if isinstance(player_data, dict) and player_data.get('is_dead', False):
+                                    opponent_num = 1 if int(player_num) == 2 else 2
+                                    self.game_over = True
+                                    self.winner = opponent_num
+                                    self.logger.info(f'Detected game over state! Winner: {self.winner}')
 
-                opponent_num = 2 if self.player_num == 1 else 1
-                if (isinstance(self.game_state.get('players', {}), dict) and
-                    opponent_num in self.game_state['players'] and
-                    self.game_state['players'][opponent_num].get('character') and
-                    not self.opponent_character):
-                    self.opponent_character = self.game_state['players'][opponent_num]['character']
-                    self.opponent_sprite = self.create_character_sprite(self.opponent_character)
+                    opponent_num = 2 if self.player_num == 1 else 1
+                    if (isinstance(self.game_state.get('players', {}), dict) and
+                            opponent_num in self.game_state['players'] and
+                            self.game_state['players'][opponent_num].get('character') and
+                            not self.opponent_character):
+                        self.opponent_character = self.game_state['players'][opponent_num]['character']
+                        self.opponent_sprite = self.create_character_sprite(self.opponent_character)
+
+                except (pickle.UnpicklingError, EOFError):
+                    pass
+
+
 
             except (socket.error, ConnectionResetError, ConnectionAbortedError) as e:
                 self.logger.info(f'socket connection error: {str(e)}')
@@ -186,6 +204,7 @@ class GameClient:
                 self.error_message = f'Server connection lost: {str(e)}'
                 self.connected = False
                 break
+                pass
 
             except Exception as e:
                 self.logger.info(f'Error receiving data: {str(e)}')
@@ -197,7 +216,12 @@ class GameClient:
     def send_data(self, data):
         try:
             if self.client_socket and self.connected:
+                if isinstance(data, dict):
+                    data['timestamp'] = time.time()
                 self.client_socket.send(pickle.dumps(data))
+        except BlockingIOError:
+            pass
+
         except Exception as e:
             self.logger.info(f'Error sending data: {str(e)}')
             self.server_error = True
@@ -346,6 +370,9 @@ class GameClient:
             pygame.draw.rect(self.screen, self.WHITE, (platform.x, platform.y, platform.width, 5))
 
     def create_character_sprite(self, character_name):
+        if hasattr(self, 'sprite_cache') and character_name in self.sprite_cache:
+            return self.sprite_cache[character_name]
+
         character_colors = {
             'Lucario': (0, 0, 255),
             'Mewtwo': (255, 0, 255),
@@ -356,7 +383,13 @@ class GameClient:
         try:
             sprite = f"sprites/{character_name.lower()}_sprite.png"
             img = pygame.image.load(sprite).convert_alpha()
-            return pygame.transform.scale(img, (100, 100))
+            scaled_img = pygame.transform.scale(img, (100, 100))
+
+            if not hasattr(self, 'sprite_cache'):
+                self.sprite_cache = {}
+            self.sprite_cache[character_name] = scaled_img
+
+            return scaled_img
 
         except Exception as e:
             self.logger.info(f"Error loading sprite for {character_name}: {str(e)}")
@@ -364,6 +397,11 @@ class GameClient:
             surface = pygame.surface.Surface((100, 100))
             color = character_colors.get(character_name, (255, 0, 0))
             surface.fill(color)
+
+            if not hasattr(self, 'sprite_cache'):
+                self.sprite_cache = {}
+            self.sprite_cache[character_name] = surface
+
             return surface
 
     def draw_character(self, player_data, sprite):
@@ -478,9 +516,13 @@ class GameClient:
         player_data = None
         last_action_time = time.time()
         action_throttle = 0.05
+        last_update_time = 0
+        prediction_steps = 0
+        max_prediction_steps = 3
 
         while running:
             frame_start_time = time.time()
+            current_time = pygame.time.get_ticks()
 
             for event in pygame.event.get():
                 if event.type == QUIT:
@@ -498,7 +540,19 @@ class GameClient:
             self.draw_platforms()
 
             if self.player_num in self.game_state['players']:
-                self.draw_character(self.game_state['players'][self.player_num], self.character_sprite)
+                player_data = self.game_state['players'][self.player_num]
+
+                if time.time() - last_update_time > 0.1 and prediction_steps < max_prediction_steps:
+                    if 'velocity_y' in player_data and is_jumping:
+                        predicted_y = player_data['y'] + player_data['velocity_y']
+                        player_data['y'] = predicted_y
+                        player_data['velocity_y'] += gravity
+                        prediction_steps += 1
+                else:
+                    prediction_steps = 0
+                    last_update_time = time.time()
+
+                self.draw_character(player_data, self.character_sprite)
 
             opponent_num = 2 if self.player_num == 1 else 1
             if opponent_num in self.game_state['players']:
@@ -537,6 +591,15 @@ class GameClient:
                         jump_key = K_UP
                         attack_key = K_k
                         special_attack_key = K_l
+
+                    if self.match_started and self.connected and not self.game_over:
+                        elapsed_time = (current_time - last_action_time) / 1000.0
+                        if elapsed_time >= action_throttle:
+                            movement_speed = 300 * elapsed_time
+                            if keys[left_key] and 'x' in player_data:
+                                player_data['x'] = max(50, player_data['x'] - movement_speed)
+                                action['x'] = player_data['x']
+                                action['facing_right'] = False
 
                     if keys[left_key]:
                         if 'x' in player_data:
@@ -623,17 +686,18 @@ class GameClient:
                                 action['damage'] = 22 * (1 + distance / 250)
                                 action['attack_range'] = 250
 
-                        last_special_attack_time = current_time
+                        last_action_time = current_time
 
                     if action and self.connected:
-                        self.send_data({'player_action': action})
+                        if len(action) > 1 or ('is_attacking' in action) or ('is_special_attacking' in action):
+                            self.send_data({'player_action' : action})
+
 
             pygame.display.flip()
             frame_time = time.time() - frame_start_time
             wait_time = max(0, 1/60 - frame_time)
             time.sleep(wait_time)
             self.clock.tick(60)
-
 
     def run(self):
         if self.connect_to_server():
