@@ -161,7 +161,7 @@ class GameClient:
 
                 for player_num, player_data in self.game_state.get('players', {}):
                     if player_data.get('is_dead', False):
-                        opponent_num = 1 if int(player_num) == 2 else 2
+                        opponent_num = 1 if player_num == 2 else 2
                         self.game_over = True
                         self.winner = opponent_num
                         self.logger.info(f'Detected game over from state: Winner: {player_num}')
