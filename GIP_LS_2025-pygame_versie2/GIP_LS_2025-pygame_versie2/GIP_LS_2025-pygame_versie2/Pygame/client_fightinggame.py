@@ -479,6 +479,11 @@ class GameClient:
         last_action_time = time.time()
         action_throttle = 0.05
 
+        last_server_timestamp = 0
+        predicted_state = None
+        interpolation_buffer = []
+        interpolation_delay = 0.1
+
         while running:
             frame_start_time = time.time()
 
@@ -497,11 +502,54 @@ class GameClient:
             self.draw_background()
             self.draw_platforms()
 
-            if self.player_num in self.game_state['players']:
-                self.draw_character(self.game_state['players'][self.player_num], self.character_sprite)
+            current_server_timestamp = self.game_state.get('timestamp', 0)
+            if current_server_timestamp > last_server_timestamp:
+                if opponent_num in self.game_state['players']:
+                    interpolation_buffer.append({
+                        'timestamp': current_server_timestamp,
+                        'data': self.game_state['players'][opponent_num].copy()
+                    })
+                    while len(interpolation_buffer) > 10:
+                        interpolation_buffer.pop(0)
 
-            opponent_num = 2 if self.player_num == 1 else 1
-            if opponent_num in self.game_state['players']:
+                last_server_timestamp = current_server_timestamp
+
+                if self.player_num in self.game_state['players']:
+                    predicted_state = self.game_state['players'][self.player_num].copy()
+
+            if self.player_num in self.game_state['players']:
+                player_render_data = predicted_state if predicted_state else self.game_state['players'][self.player_num]
+                self.draw_character(player_render_data, self.character_sprite)
+
+            if opponent_num in self.game_state['players'] and len(interpolation_buffer) >= 2:
+                render_time = time.time() - interpolation_delay
+
+                prev_frame = interpolation_buffer[0]
+                next_frame = interpolation_buffer[1]
+
+                for i in range(len(interpolation_buffer) - 1):
+                    if (interpolation_buffer[i]['timestamp'] <= render_time and
+                    interpolation_buffer[i+1]['timestamp'] >= render_time):
+                        prev_frame = interpolation_buffer[i]
+                        next_frame = interpolation_buffer[i+1]
+                        break
+
+                time_diff = next_frame['timestamp'] - prev_frame['timestamp']
+                if time_diff > 0:
+                    t = (render_time - prev_frame['timestamp']) / time_diff
+                    t = max(0, min(1, t))
+
+                    interpolated_data = prev_frame['data'].copy()
+                    if 'x' in prev_frame['data'] and 'x' in next_frame['data']:
+                        interpolated_data['x'] = prev_frame['data']['x'] + t * (next_frame['data']['x'] - prev_frame['data']['x'])
+                    if 'y' in prev_frame['data'] and 'y' in next(['data']):
+                        interpolated_data['y'] = prev_frame['data']['y'] + t * (next_frame['data']['y'] - prev_frame['data']['y'])
+
+                    self.draw_character(interpolated_data, self.opponent_sprite)
+
+                else:
+                    self.draw_character(self.game_state['players'][opponent_num], self.opponent_sprite)
+            elif opponent_num in self.game_state['players']:
                 self.draw_character(self.game_state['players'][opponent_num], self.opponent_sprite)
 
             if self.server_error:
@@ -519,8 +567,12 @@ class GameClient:
 
                 player_data = self.game_state['players'][self.player_num]
 
+                if predicted_state is None:
+                    predicted_state = player_data.copy()
+
                 if 'velocity_y' not in player_data:
                     player_data['velocity_y'] = 0
+                    predicted_state['velocity_y'] = 0
 
                 if time.time() - last_action_time >= action_throttle:
                     action = {}
@@ -539,74 +591,79 @@ class GameClient:
                         special_attack_key = K_l
 
                     if keys[left_key]:
-                        if 'x' in player_data:
-                            player_data['x'] = max(50, player_data['x']-5)
-                            action['x'] = player_data['x']
+                        if 'x' in predicted_state:
+                            predicted_state['x'] = max(50, predicted_state['x'] - 5)
+                            action['x'] = predicted_state['x']
                             action['facing_right'] = False
+                            predicted_state['facing_right'] = False
 
                     elif keys[right_key]:
-                        if 'x' in player_data:
-                            player_data['x'] = min(950, player_data['x']+5)
-                            action['x'] = player_data['x']
+                        if 'x' in predicted_state:
+                            predicted_state['x'] = min(950, predicted_state['x'] + 5)
+                            action['x'] = predicted_state['x']
                             action['facing_right'] = True
+                            predicted_state['facing_right'] = True
 
                     on_platform, platform_y = self.check_on_platform(
-                        player_data.get('x', 0),
-                        player_data.get('y', 0),
+                        predicted_state.get('x', 0),
+                        predicted_state.get('y', 0),
                         player_feet_offset
                     )
 
                     if keys[jump_key] and on_platform and not is_jumping:
                         is_jumping = True
-                        player_data['velocity_y'] = -jump_strength
+                        predicted_state['velocity_y'] = -jump_strength
                         jump_velocity = -jump_strength
                         action['is_jumping'] = True
-                        action['velocity'] = player_data['velocity_y']
+                        action['velocity'] = predicted_state['velocity_y']
 
                     if is_jumping or not on_platform:
-                        player_data['y'] += jump_velocity
+                        predicted_state['y'] += jump_velocity
                         jump_velocity += gravity
-                        player_data['velocity_y'] = jump_velocity
-                        action['y'] = player_data['y']
-                        action['velocity_y'] = player_data['velocity_y']
+                        predicted_state['velocity_y'] = jump_velocity
+                        action['y'] = predicted_state['y']
+                        action['velocity_y'] = predicted_state['velocity_y']
 
                     on_platform_now, landing_y = self.check_on_platform(
-                        player_data.get('x', 0),
-                        player_data.get('y', 0),
+                        predicted_state.get('x', 0),
+                        predicted_state.get('y', 0),
                         player_feet_offset
                     )
 
                     if not on_platform:
-                        player_data['y'] += gravity
-                        player_data['velocity_y'] = player_data['velocity_y']
-                        action['velocity_y'] = player_data['velocity_y']
+                        predicted_state['y'] += gravity
+                        predicted_state['velocity_y'] = predicted_state['velocity_y']
+                        action['velocity_y'] = predicted_state['velocity_y']
 
                     if on_platform_now and jump_velocity > 0:
                         is_jumping = False
                         jump_velocity = 0
-                        player_data['velocity_y'] = 0
-                        player_data['y'] = landing_y
+                        predicted_state['velocity_y'] = 0
+                        predicted_state['y'] = landing_y
                         action['y'] = landing_y
                         action['is_jumping'] = False
                         action['velocity_y'] = 0
 
-                    if self.check_death(player_data.get('y', 0)):
+                    if self.check_death(predicted_state.get('y', 0)):
                         action['died'] = True
+                        predicted_state['is_dead'] = True
                         self.send_data({'player_died': True})
 
                     if keys[attack_key] and current_time - last_attack_time > 500:
                         action['is_attacking'] = True
+                        predicted_state['is_attacking'] = True
                         action['attack'] = True
                         action['damage'] = 10
                         action['attack_range'] = 150
                         last_attack_time = current_time
 
-                    if keys[special_attack_key] and current_time - last_special_attack_time:
+                    if keys[special_attack_key] and current_time - last_special_attack_time > special_attack_cooldown:
                         action['is_special_attacking'] = True
+                        predicted_state['is_special_attacking'] = True
                         action['attack'] = True
 
                         if self.character == 'Lucario':
-                            health_percent = player_data.get('health', 100) / 100
+                            health_percent = predicted_state.get('health', 100) / 100
                             action['damage'] = 25 * (1 + (1 - health_percent))
                             action['attack_range'] = 200
                         elif self.character == 'Mewtwo':
@@ -619,7 +676,7 @@ class GameClient:
                             opponent_num = 2 if self.player_num == 1 else 1
                             opponent_data = self.game_state['players'].get(opponent_num, {})
                             if opponent_data:
-                                distance = abs(player_data.get('x', 0) - opponent_data.get('x', 0))
+                                distance = abs(predicted_state.get('x', 0) - opponent_data.get('x', 0))
                                 action['damage'] = 22 * (1 + distance / 250)
                                 action['attack_range'] = 250
 
@@ -627,13 +684,13 @@ class GameClient:
 
                     if action and self.connected:
                         self.send_data({'player_action': action})
+                        last_action_time = time.time()
 
             pygame.display.flip()
             frame_time = time.time() - frame_start_time
             wait_time = max(0, 1/60 - frame_time)
             time.sleep(wait_time)
             self.clock.tick(60)
-
 
     def run(self):
         if self.connect_to_server():

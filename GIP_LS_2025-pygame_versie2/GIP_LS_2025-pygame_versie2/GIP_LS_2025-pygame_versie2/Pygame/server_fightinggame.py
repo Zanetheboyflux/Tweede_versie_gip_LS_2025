@@ -193,9 +193,11 @@ class GameServer:
             player['is_special_attacking'] = action['is_special_attacking']
 
     def broadcast_game_state(self):
-        for client_socket in self.clients.values():
+        for player_num, client_socket in self.clients.items():
             try:
-                client_socket.send(pickle.dumps(self.game_state))
+                player_specific_state = self.game_state.copy()
+                player_specific_state['timestamp'] = time.time()
+                client_socket.send(pickle.dumps(player_specific_state))
             except Exception as e:
                 self.logger.error(f'Error sending game state: {str(e)}')
 
