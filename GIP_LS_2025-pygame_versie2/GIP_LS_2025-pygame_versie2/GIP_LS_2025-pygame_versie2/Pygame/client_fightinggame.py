@@ -58,7 +58,7 @@ class GameClient:
 
         self.character_sprite = None
         self.opponent_sprite = None
-        self.sprite_cache = None
+        self.sprite_cache = {}
 
         self.heartbeat_thread = None
         self.last_server_response = time.time()
@@ -124,7 +124,7 @@ class GameClient:
             self.logger.info(f'Error connection to server: {str(e)}')
             self.server_error = True
             self.error_message = f"Connection error: {str(e)}"
-            pass 
+            pass
 
     def check_server_heartbeat(self):
         while self.connected:
@@ -370,7 +370,7 @@ class GameClient:
             pygame.draw.rect(self.screen, self.WHITE, (platform.x, platform.y, platform.width, 5))
 
     def create_character_sprite(self, character_name):
-        if hasattr(self, 'sprite_cache') and character_name in self.sprite_cache:
+        if character_name in self.sprite_cache:
             return self.sprite_cache[character_name]
 
         character_colors = {
@@ -385,8 +385,6 @@ class GameClient:
             img = pygame.image.load(sprite).convert_alpha()
             scaled_img = pygame.transform.scale(img, (100, 100))
 
-            if not hasattr(self, 'sprite_cache'):
-                self.sprite_cache = {}
             self.sprite_cache[character_name] = scaled_img
 
             return scaled_img
@@ -398,8 +396,6 @@ class GameClient:
             color = character_colors.get(character_name, (255, 0, 0))
             surface.fill(color)
 
-            if not hasattr(self, 'sprite_cache'):
-                self.sprite_cache = {}
             self.sprite_cache[character_name] = surface
 
             return surface
