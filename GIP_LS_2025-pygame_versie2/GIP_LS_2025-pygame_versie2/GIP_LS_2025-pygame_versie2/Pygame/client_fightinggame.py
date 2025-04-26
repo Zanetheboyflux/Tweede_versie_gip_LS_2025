@@ -542,7 +542,7 @@ class GameClient:
                     interpolated_data = prev_frame['data'].copy()
                     if 'x' in prev_frame['data'] and 'x' in next_frame['data']:
                         interpolated_data['x'] = prev_frame['data']['x'] + t * (next_frame['data']['x'] - prev_frame['data']['x'])
-                    if 'y' in prev_frame['data'] and 'y' in next(['data']):
+                    if 'y' in prev_frame['data'] and 'y' in next_frame['data']:
                         interpolated_data['y'] = prev_frame['data']['y'] + t * (next_frame['data']['y'] - prev_frame['data']['y'])
 
                     self.draw_character(interpolated_data, self.opponent_sprite)
