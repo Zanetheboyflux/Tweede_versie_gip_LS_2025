@@ -172,7 +172,7 @@ class GameClient:
                                 self.logger.info(f'Detected game over state! Winner: {self.winner}')
 
                 opponent_num = 2 if self.player_num == 1 else 1
-                if (isinstance(self.game_state.gte('players', {}), dict) and
+                if (isinstance(self.game_state.get('players', {}), dict) and
                     opponent_num in self.game_state['players'] and
                     self.game_state['players'][opponent_num].get('character') and
                     not self.opponent_character):
