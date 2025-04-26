@@ -162,21 +162,23 @@ class GameClient:
                     self.game_state = response
                     self.logger.info(f'Response in else: {response}')
 
-                    for player_num, player_data in self.game_state.get('players', {}):
-                        self.logger.info(f'player_num: {player_num}')
-                        self.logger.info(f'player_data: {player_data}')
-                        if player_data.get('is_dead', False):
-                            opponent_num = 1 if int(self.player_num) == 2 else 2
-                            self.game_over = True
-                            self.winner = opponent_num
-                            self.logger.info(f'Detected game over from state: Winner: {player_num}')
+                    players = self.game_state.get('players', {})
+                    if isinstance(players, dict):
+                        for player_num, player_data in players.items():
+                            if isinstance(player_data, dict) and player_data.get('is_dead', False):
+                                opponent_num = 1 if int(player_num) == 2 else 2
+                                self.game_over = True
+                                self.winner = opponent_num
+                                self.logger.info(f'Detected game over state! Winner: {self.winner}')
 
                 opponent_num = 2 if self.player_num == 1 else 1
-                if (opponent_num in self.game_state['players'] and
+                if (isinstance(self.game_state.gte('players', {}), dict) and
+                    opponent_num in self.game_state['players'] and
                     self.game_state['players'][opponent_num].get('character') and
                     not self.opponent_character):
                     self.opponent_character = self.game_state['players'][opponent_num]['character']
                     self.opponent_sprite = self.create_character_sprite(self.opponent_character)
+
             except (socket.error, ConnectionResetError, ConnectionAbortedError) as e:
                 self.logger.info(f'socket connection error: {str(e)}')
                 self.server_error = True
