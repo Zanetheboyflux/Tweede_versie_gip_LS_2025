@@ -663,11 +663,11 @@ class GameClient:
 
                             last_action_time = current_time
 
-                    if action and self.connected:
-                        if len(action) > 1 or ('is_attacking' in action) or ('is_special_attacking' in action):
-                            self.send_data({'player_action' : action})
+                        if action and self.connected:
+                            if len(action) > 1 or ('is_attacking' in action) or ('is_special_attacking' in action):
+                                self.send_data({'player_action' : action})
 
-                    last_action_time = time.time() 
+                    last_action_time = time.time()
 
             pygame.display.flip()
             frame_time = time.time() - frame_start_time
