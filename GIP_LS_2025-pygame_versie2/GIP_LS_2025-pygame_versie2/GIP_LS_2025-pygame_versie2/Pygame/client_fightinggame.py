@@ -153,9 +153,11 @@ class GameClient:
                             self.game_state = response['game_state']
                             self.init_platforms()
                         elif response['status'] == 'game_over':
+                            self.logger.info(f'Game over received with winner: {response.get('winner')}')
                             self.game_over = True
-                            self.winner = response['winner']
-                            self.logger.info(f'Game over received! Winner: {self.winner}')
+                            self.winner = response.get('winner')
+                            if 'game_state' in response:
+                                self.game_state = response['game_state']
                         elif response['status'] == 'server_error':
                             self.server_error = True
                             self.error_message = response.get('message', "Server reported an error")
@@ -176,11 +178,12 @@ class GameClient:
                             self.game_state['platforms'] = response['platforms']
                             self.init_platforms()
 
-                        players = self.game_state.get('players', {})
-                        if isinstance(players, dict):
-                            for player_num, player_data in players.items():
-                                if isinstance(player_data, dict) and player_data.get('is_dead', False):
-                                    opponent_num = 1 if int(player_num) == 2 else 2
+                    players = self.game_state.get('players', {})
+                    if isinstance(players, dict):
+                        for player_num, player_data in players.items():
+                            if isinstance(player_data, dict) and player_data.get('is_dead', False):
+                                opponent_num = 1 if int(player_num) == 2 else 2
+                                if not self.game_over:
                                     self.game_over = True
                                     self.winner = opponent_num
                                     self.logger.info(f'Detected game over state! Winner: {self.winner}')
@@ -196,7 +199,6 @@ class GameClient:
                 except pickle.UnpicklingError as e:
                     self.logger.info(f'Error unpickling data: {str(e)}')
                     continue
-
 
             except (socket.error, ConnectionResetError, ConnectionAbortedError) as e:
                 self.logger.info(f'socket connection error: {str(e)}')
@@ -449,31 +451,22 @@ class GameClient:
 
         player_prev_feet_y = player_feet_y - player_velocity_y
 
-        if abs(player_velocity_y) > 20:
-            steps = max(1, int(abs(player_velocity_y) / 10))
-            step_size = player_velocity_y / steps
+        steps = max(3, int(abs(player_velocity_y) / 5))
 
-            for i in range(steps):
-                check_y = player_prev_feet_y + step_size * i
+        if player_prev_feet_y > player_feet_y:
+            start_y, end_y = player_feet_y, player_prev_feet_y
+        else:
+            start_y, end_y = player_prev_feet_y, player_feet_y
+        step_size = (end_y - start_y) / steps if steps > 0 else 0
 
-                for platform in self.platforms:
-                    if (player_x + player_width > platform.x and
-                    player_x - player_width < platform.x + platform.width):
-                        if ((player_prev_feet_y <= platform.y and player_feet_y >= platform.y) or
-                                (platform.y - 15 <= check_y <= platform.y + 10)):
-                            return True, platform.y
+        for i in range(steps + 1):
+            check_y = start_y + step_size * i
 
-
-        for platform in self.platforms:
-            if (player_x + player_width > platform.x and
-            player_x - player_width < platform.x + platform.width):
-                if (player_prev_feet_y <= platform.y and
-                    player_feet_y >= platform.y):
-                    return True, platform.y
-
-                if (platform.y - 15 <= player_feet_y <= platform.y + 10):
-                    return True, platform.y
-
+            for platform in self.platforms:
+                if (player_x + player_width > platform.x and
+                player_x - player_width < platform.x + platform.width):
+                    if platform.y - 20 <= check_y <= platform.y + 20:
+                        return True, platform.y
         return False, None
 
     def check_death(self, player_y):

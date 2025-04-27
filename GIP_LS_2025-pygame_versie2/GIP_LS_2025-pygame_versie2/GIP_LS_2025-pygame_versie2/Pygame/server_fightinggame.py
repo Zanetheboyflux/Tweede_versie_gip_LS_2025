@@ -238,6 +238,8 @@ class GameServer:
     def update_game_state(self):
         last_broadcast_time = time.time()
         broadcast_interval = 0.016
+        game_over_state = False
+        game_over_time = 0
 
         while True:
             current_time = time.time()
@@ -267,28 +269,34 @@ class GameServer:
                         break
 
                 if game_over:
+                    game_over_state = True
+                    game_over_time = current_time
                     self.logger.info(f'Game_over! Player {winner} wins!')
-                    for client_socket in self.clients.values():
-                        try:
-                            client_socket.send(pickle.dumps({
-                                "status": 'game_over',
-                                'winner': winner,
-                                'game_state': self.game_state
-                            }))
-                        except Exception as e:
-                            self.logger.error(f'Error sending game_over: {e}')
+                    for i in range(3):
+                        for client_socket in self.clients.values():
+                            try:
+                                client_socket.send(pickle.dumps({
+                                    "status": 'game_over',
+                                    'winner': winner,
+                                    'game_state': self.game_state
+                                }))
+                            except Exception as e:
+                                self.logger.error(f'Error sending game_over: {e}')
+                    time.sleep(0.1)
 
-                    self.match_started = False
-                    self.game_state['ready'] = 0
+            if game_over_state and current_time - game_over_time >= 5:
+                self.match_started = False
+                self.game_state['ready'] = 0
+                game_over_state = False
 
-                    for player_num, player in self.game_state['players'].items():
-                        player.update({
-                            'health': 100,
-                            'is_dead': False,
-                            'x': 300 if player_num == 1 else 700,
-                            'y': 580
-                        })
-                    self.logger.info('Game reset for new match')
+                for player_num, player in self.game_state['players'].items():
+                    player.update({
+                        'health': 100,
+                        'is_dead': False,
+                        'x': 300 if player_num == 1 else 700,
+                        'y': 580
+                    })
+                self.logger.info('Game reset for new match')
 
             time.sleep(0.01)
 
