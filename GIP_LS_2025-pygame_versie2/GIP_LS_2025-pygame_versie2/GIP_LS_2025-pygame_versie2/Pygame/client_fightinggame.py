@@ -445,14 +445,30 @@ class GameClient:
 
         player_width = 50
         player_feet_y = player_y + feet_offset
-        player_prev_feet_y = player_feet_y - (self.game_state['players'][self.player_num].get('velocity_y', 0) if self.player_num in self.game_state['players'] else 0)
+        player_velocity_y = self.game_state['players'][self.player_num].get('velocity_y', 0) if self.player_num in self.game_state['players'] else 0
+
+        player_prev_feet_y = player_feet_y - player_velocity_y
+
+        if abs(player_velocity_y) > 20:
+            steps = max(1, int(abs(player_velocity_y) / 10))
+            step_size = player_velocity_y / steps
+
+            for i in range(steps):
+                check_y = player_prev_feet_y + step_size * i
+
+                for platform in self.platforms:
+                    if (player_x + player_width > platform.x and
+                    player_x - player_width < platform.x + platform.width):
+                        if ((player_prev_feet_y <= platform.y and player_feet_y >= platform.y) or
+                                (platform.y - 15 <= check_y <= platform.y + 10)):
+                            return True, platform.y
+
 
         for platform in self.platforms:
             if (player_x + player_width > platform.x and
             player_x - player_width < platform.x + platform.width):
                 if (player_prev_feet_y <= platform.y and
-                    player_feet_y >= platform.y and
-                    player_feet_y <= platform.y + 15):
+                    player_feet_y >= platform.y):
                     return True, platform.y
 
                 if (platform.y - 15 <= player_feet_y <= platform.y + 10):
