@@ -104,6 +104,7 @@ class GameServer:
             self.close_server()
 
     def handle_client(self, client_socket, player_num):
+        buffer_size = 8192
 
         heartbeat_thread = threading.Thread(target=self.send_heartbeats, args=(client_socket, player_num))
         heartbeat_thread.daemon = True
@@ -111,33 +112,34 @@ class GameServer:
 
         try:
             while True:
-                data = client_socket.recv(4096)
+                data = client_socket.recv(buffer_size)
                 if not data:
                     break
-                client_data = pickle.loads(data)
+                try:
+                    client_data = pickle.loads(data)
 
-                if 'player_action' in client_data:
-                    action = client_data['player_action']
-                    self.process_action(player_num, action)
+                    if 'player_action' in client_data:
+                        action = client_data['player_action']
+                        self.process_action(player_num, action)
 
-                    if 'attack' in action and action['attack']:
-                        self.handle_attack(player_num, action)
+                        if 'attack' in action and action['attack']:
+                            self.handle_attack(player_num, action)
 
-                if 'character_select' in client_data:
-                    self.game_state['players'][player_num]['character']= client_data['character_select']
-                    self.logger.info(f'Player {player_num} selected character: {client_data}')
+                    elif 'character_select' in client_data:
+                        self.game_state['players'][player_num]['character']= client_data['character_select']
+                        self.logger.info(f'Player {player_num} selected character: {client_data['character_select']}')
 
-                if 'ready' in client_data and client_data['ready']:
-                    self.game_state['ready'] += 1
-                    self.logger.info(f"Player {player_num} is ready. Ready count: {self.game_state['ready']}")
+                    elif 'ready' in client_data and client_data['ready']:
+                        self.game_state['ready'] += 1
+                        self.logger.info(f"Player {player_num} is ready. Ready count: {self.game_state['ready']}")
 
-                if 'player_action' in client_data:
-                    action = client_data['player_action']
-                    player = self.game_state['players'][player_num]
+                    elif 'player_died' in client_data and client_data['player_died']:
+                        self.game_state['players'][player_num]['is_dead'] = True
+                        self.logger.info(f'Player {player_num} died!')
 
-                if 'player_died' in client_data and client_data['player_died']:
-                    self.game_state['players'][player_num]['is_dead'] = True
-                    self.logger.info(f'Player {player_num} died!')
+                except pickle.UnpicklingError:
+                    self.logger.info(f'Error unpickling data from player {player_num}')
+                    continue
 
         except Exception as e:
             self.logger.info(f'Error handling client {player_num}:{str(e)}')
@@ -235,7 +237,7 @@ class GameServer:
 
     def update_game_state(self):
         last_broadcast_time = time.time()
-        broadcast_interval = 0.03
+        broadcast_interval = 0.016
 
         while True:
             current_time = time.time()
