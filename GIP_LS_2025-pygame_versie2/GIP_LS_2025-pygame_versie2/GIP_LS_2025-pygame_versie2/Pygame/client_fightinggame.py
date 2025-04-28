@@ -540,7 +540,8 @@ class GameClient:
                 server_player_state = self.game_state['players'][self.player_num]
                 if predicted_player_state is None:
                     predicted_player_state = server_player_state.copy()
-                    self.logger.info(f'player state: {predicted_player_state}')
+                    for i in predicted_player_state:
+                        self.logger.info(f'player state: {i}')
 
                 if 'x' in server_player_state and 'x' in predicted_player_state:
                     if abs(server_player_state['x'] - predicted_player_state['x']) > 15:
@@ -560,7 +561,8 @@ class GameClient:
 
                 if current_opponent_state is None:
                     current_opponent_state = opponent_state.copy()
-                    self.logger.info(f'opponent state: {current_opponent_state}')
+                    for i in current_opponent_state:
+                        self.logger.info(f'opponent state: {i}')
                 else:
                     if 'x' in opponent_state and 'x' in current_opponent_state:
                         current_opponent_state['x'] += (opponent_state['x'] - current_opponent_state['x']) * opponent_lerp_factor
