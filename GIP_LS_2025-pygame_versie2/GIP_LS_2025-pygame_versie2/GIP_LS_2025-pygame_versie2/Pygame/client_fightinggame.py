@@ -172,6 +172,7 @@ class GameClient:
                             self.winner = None
                             self.game_state = response['game_state']
                             self.ready = False
+                            continue 
 
                     else:
                         if 'players' in response:
