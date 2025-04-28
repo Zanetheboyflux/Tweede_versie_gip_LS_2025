@@ -66,6 +66,8 @@ class GameClient:
         self.server_error = False
         self.error_message = None
 
+        self.reset_requested = False
+
     def connect_to_server(self):
         try:
             self.logger.info(f'Attempting to connect to server at {self.host}:{self.port}')
@@ -170,9 +172,13 @@ class GameClient:
                             self.match_started = False
                             self.game_over = False
                             self.winner = None
-                            self.game_state = response['game_state']
                             self.ready = False
-                            continue 
+                            self.character = None
+                            self.game_state = {
+                                'players': {},
+                                'platforms': []
+                            }
+                            self.reset_requested = True
 
                     else:
                         if 'players' in response:
@@ -531,7 +537,7 @@ class GameClient:
         current_opponent_state = None
         opponent_lerp_factor = 0.3
 
-        while running:
+        while running and not self.reset_requested:
             frame_start_time = time.time()
 
             for event in pygame.event.get():
@@ -730,15 +736,20 @@ class GameClient:
                         if action and action_taken and self.connected:
                             self.send_data({'player_action': action})
                             last_action_time = time.time()
+                    self.reset_requested = False
 
             pygame.display.flip()
             self.clock.tick(60)
 
     def run(self):
         if self.connect_to_server():
-            self.select_character()
-            self.wait_for_match()
-            self.run_game()
+            while self.connected and not self.server_error:
+                self.select_character()
+                self.wait_for_match()
+                self.run_game()
+
+                if not self.connected or self.server_error:
+                    break
 
             if self.client_socket:
                 self.client_socket.close()

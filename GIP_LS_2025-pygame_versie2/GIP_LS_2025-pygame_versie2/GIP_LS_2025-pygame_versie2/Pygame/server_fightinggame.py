@@ -289,9 +289,10 @@ class GameServer:
                     time.sleep(0.1)
 
             if game_over_state and current_time - game_over_time >= 5:
-                self.match_started = False
-                self.game_state['ready'] = 0
-                game_over_state = False
+                if self.match_started:
+                    self.match_started = False
+                    self.game_state['ready'] = 0
+                    game_over_state = False
 
                 for player_num, player in self.game_state['players'].items():
                     player.update({
@@ -309,16 +310,21 @@ class GameServer:
         self.game_state['ready'] = 0
 
         for player_num, player in self.game_state['players'].items():
-            player.update({
-                'health': 100,
-                'is_dead': False,
+            connected_status = player.get('connected', True)
+            character = None
+
+            self.game_state['players'][player_num] = {
+                'connected': connected_status,
+                'character': character,
                 'x': 300 if player_num == 1 else 700,
                 'y': 580,
+                'health': 100,
+                'is_dead': False,
                 'is_attacking': False,
                 'is_special_attacking': False,
                 'facing_right': True if player_num == 2 else False,
                 'velocity_y': 0
-            })
+            }
 
         for client_socket in self.clients.values():
             try:
@@ -328,6 +334,8 @@ class GameServer:
                 }))
             except Exception as e:
                 self.logger.error(f'Error sending game reset: {e}')
+
+        self.logger.info("Game fully reset - returning to character selection")
 
     def close_server(self):
         self.logger.info('Closing server')
