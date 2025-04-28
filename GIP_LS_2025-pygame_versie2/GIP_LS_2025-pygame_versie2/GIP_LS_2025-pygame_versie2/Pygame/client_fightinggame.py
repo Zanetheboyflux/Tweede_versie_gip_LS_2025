@@ -152,7 +152,6 @@ class GameClient:
                             self.match_started = True
                             self.game_state = response['game_state']
                             self.init_platforms()
-                            self.logger.info(f'Match started received: {response.get('match_started')}')
                         elif response['status'] == 'game_over':
                             self.logger.info(f'Game over received with winner: {response.get('winner')}')
                             self.game_over = True
@@ -575,7 +574,7 @@ class GameClient:
                         current_opponent_state['is_special_attacking'] = opponent_state['is_special_attacking']
                     if 'facing_right' in opponent_state:
                         current_opponent_state['facing_right'] = opponent_state['facing_right']
-                        
+
                 self.logger.info(f'opponent state: {current_opponent_state}')
 
                 self.draw_character(current_opponent_state, self.opponent_sprite)
