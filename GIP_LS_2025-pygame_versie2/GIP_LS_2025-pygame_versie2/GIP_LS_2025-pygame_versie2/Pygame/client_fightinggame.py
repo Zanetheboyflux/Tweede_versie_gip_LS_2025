@@ -152,6 +152,7 @@ class GameClient:
                             self.match_started = True
                             self.game_state = response['game_state']
                             self.init_platforms()
+                            self.logger.info(f'Match started received: {response.get('match_started')}')
                         elif response['status'] == 'game_over':
                             self.logger.info(f'Game over received with winner: {response.get('winner')}')
                             self.game_over = True
