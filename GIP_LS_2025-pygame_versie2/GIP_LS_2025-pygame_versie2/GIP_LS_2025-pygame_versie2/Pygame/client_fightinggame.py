@@ -5,6 +5,8 @@ import threading
 import sys
 import time
 import logging
+
+from jinja2.nodes import Continue
 from pygame.locals import *
 
 class GameClient:
@@ -164,6 +166,13 @@ class GameClient:
                             self.logger.info(f'Server error: {self.error_message}')
                         elif response['status'] == 'heartbeat':
                             continue
+                        elif response['status'] == 'game_reset':
+                            self.match_started = False
+                            self.game_over = False
+                            self.winner = None
+                            self.game_state = response['game_state']
+                            self.ready = False
+                            
                     else:
                         if 'players' in response:
                             for player_num, player_data in response['players'].items():
@@ -436,6 +445,10 @@ class GameClient:
             text_rect = text.get_rect(center=(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 2))
             self.screen.blit(text, text_rect)
 
+        reset_text = self.small_font.render("Press R to play again", True, self.WHITE)
+        reset_rect = reset_text.get_rect(center=(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 2 + 100))
+        self.screen.blit(reset_text, reset_rect)
+
         exit_text = self.small_font.render("Press ESC to exit", True, self.WHITE)
         exit_rect = exit_text.get_rect(center=(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 2 + 60))
         self.screen.blit(exit_text, exit_rect)
@@ -525,11 +538,15 @@ class GameClient:
                     running = False
                     pygame.quit()
                     sys.exit()
-                if event.type == KEYDOWN and event.key == K_ESCAPE:
-                    if self.server_error or self.game_over:
+                if event.type == KEYDOWN:
+                    if event.key == K_ESCAPE and (self.server_error or self.game_over):
                         running = False
                         pygame.quit()
                         sys.exit()
+                    elif event.key == K_r and self.game_over:
+                        self.send_data(({'reset_game': True}))
+                        self.game_over = False
+                        self.winner = None
 
             self.screen.fill(self.BLACK)
             self.draw_background()

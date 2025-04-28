@@ -141,6 +141,10 @@ class GameServer:
                     self.logger.info(f'Error unpickling data from player {player_num}')
                     continue
 
+                if 'reset_game' in client_data and client_data['reset_game']:
+                    self.reset_game()
+                    self.logger.info(f"Game reset requested by player {player_num}")
+
         except Exception as e:
             self.logger.info(f'Error handling client {player_num}:{str(e)}')
             try:
@@ -299,6 +303,31 @@ class GameServer:
                 self.logger.info('Game reset for new match')
 
             time.sleep(0.01)
+
+    def reset_game(self):
+        self.match_started = False
+        self.game_state['ready'] = 0
+
+        for player_num, player in self.game_state['players'].items()
+            player.update({
+                'health': 100,
+                'is_dead': False,
+                'x': 300 if player_num == 1 else 700,
+                'y': 580,
+                'is_attacking': False,
+                'is_special_attacking': False,
+                'facing_right': True if player_num == 2 else False,
+                'velocity_y': 0
+            })
+
+        for client_socket in self.clients.values():
+            try:
+                client_socket.send(pickle.dumps({
+                    'status': 'game_reset',
+                    "game_state": self.game_state
+                }))
+            except Exception as e:
+                self.logger.error(f'Error sending game reset: {e}')
 
     def close_server(self):
         self.logger.info('Closing server')
