@@ -481,7 +481,7 @@ class GameClient:
 
         if not self.character_sprite and self.character:
             self.character_sprite = self.create_character_sprite(self.character)
-            self.logger.info(f'Character: '[self.character_name])
+            self.logger.info(f'Character: {self.character_name}')
 
         if not self.opponent_sprite:
             self.opponent_sprite = pygame.Surface((100, 100))
