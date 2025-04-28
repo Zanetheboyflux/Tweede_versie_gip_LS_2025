@@ -610,6 +610,7 @@ class GameClient:
                                 action['facing_right'] = False
                                 predicted_player_state['facing_right'] = False
                                 action_taken = True
+                                self.logger.info(f'left key: ', keys[left_key])
 
                         elif keys[right_key]:
                             if 'x' in predicted_player_state:
@@ -705,7 +706,6 @@ class GameClient:
                             action_taken = True
                         if action and action_taken and self.connected:
                             self.send_data({'player_action': action})
-                            self.logger.info(f'Player action: ', action_taken)
                             last_action_time = time.time()
 
             pygame.display.flip()
