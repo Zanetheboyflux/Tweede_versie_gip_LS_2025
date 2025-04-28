@@ -308,7 +308,7 @@ class GameServer:
         self.match_started = False
         self.game_state['ready'] = 0
 
-        for player_num, player in self.game_state['players'].items()
+        for player_num, player in self.game_state['players'].items():
             player.update({
                 'health': 100,
                 'is_dead': False,
