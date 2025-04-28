@@ -705,6 +705,7 @@ class GameClient:
                             action_taken = True
                         if action and action_taken and self.connected:
                             self.send_data({'player_action': action})
+                            self.logger.info(f'Player action: ', action)
                             last_action_time = time.time()
 
             pygame.display.flip()
