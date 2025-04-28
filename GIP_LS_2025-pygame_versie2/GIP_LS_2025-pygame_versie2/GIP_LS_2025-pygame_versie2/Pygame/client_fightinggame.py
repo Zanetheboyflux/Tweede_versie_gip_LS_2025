@@ -481,6 +481,7 @@ class GameClient:
 
         if not self.character_sprite and self.character:
             self.character_sprite = self.create_character_sprite(self.character)
+            self.logger.info(f'Character: '[self.character_name])
 
         if not self.opponent_sprite:
             self.opponent_sprite = pygame.Surface((100, 100))
@@ -489,6 +490,7 @@ class GameClient:
         opponent_num = 2 if self.player_num == 1 else 1
         if opponent_num in self.game_state['players'] and self.game_state['players'][opponent_num].get('character'):
             opponent_character = self.game_state['players'][opponent_num]['character']
+            self.logger.info(f'Opponent character: {opponent_character}')
             if not self.opponent_character or self.opponent_character != opponent_character:
                 self.opponent_character = opponent_character
                 self.opponent_sprite = self.create_character_sprite(opponent_character)
@@ -611,7 +613,6 @@ class GameClient:
                                 action['facing_right'] = False
                                 predicted_player_state['facing_right'] = False
                                 action_taken = True
-                                self.logger.info(f'left key: ', keys[left_key])
 
                         elif keys[right_key]:
                             if 'x' in predicted_player_state:
