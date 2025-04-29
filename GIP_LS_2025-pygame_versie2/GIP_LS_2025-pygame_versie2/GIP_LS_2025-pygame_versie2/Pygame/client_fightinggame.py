@@ -741,6 +741,10 @@ class GameClient:
             pygame.display.flip()
             self.clock.tick(60)
 
+        if self.reset_requested:
+            self.reset_requested = False
+            return
+
     def run(self):
         if self.connect_to_server():
             while self.connected and not self.server_error:
