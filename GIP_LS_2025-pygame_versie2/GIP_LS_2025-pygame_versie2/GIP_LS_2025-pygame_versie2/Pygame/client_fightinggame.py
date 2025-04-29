@@ -67,6 +67,9 @@ class GameClient:
         self.error_message = None
 
         self.reset_requested = False
+        self.predicted_player_state = None
+        self.is_jumping = False
+        self.jump_velocity = 0
 
     def connect_to_server(self):
         try:
@@ -174,10 +177,13 @@ class GameClient:
                             self.winner = None
                             self.ready = False
                             self.character = None
-                            self.game_state = {
-                                'players': {},
-                                'platforms': []
-                            }
+                            self.predicted_player_state = None
+                            self.current_opponent_state = None
+                            self.is_jumping = False
+                            self.jump_velocity = 0
+                            if 'game_state' in response:
+                                self.game_state = response['game_state']
+                            self.logger.info("Game reset received - movement variable reset")
                             self.reset_requested = True
 
                     else:
@@ -736,7 +742,6 @@ class GameClient:
                         if action and action_taken and self.connected:
                             self.send_data({'player_action': action})
                             last_action_time = time.time()
-                    self.reset_requested = False
 
             pygame.display.flip()
             self.clock.tick(60)

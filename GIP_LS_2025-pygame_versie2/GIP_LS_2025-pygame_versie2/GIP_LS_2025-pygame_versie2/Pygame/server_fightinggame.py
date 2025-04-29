@@ -323,17 +323,19 @@ class GameServer:
                 'is_attacking': False,
                 'is_special_attacking': False,
                 'facing_right': True if player_num == 2 else False,
-                'velocity_y': 0
+                'velocity_y': 0,
+                'is_jumping': False
             }
-
-        for client_socket in self.clients.values():
-            try:
-                client_socket.send(pickle.dumps({
-                    'status': 'game_reset',
-                    "game_state": self.game_state
-                }))
-            except Exception as e:
-                self.logger.error(f'Error sending game reset: {e}')
+        for _ in range(3):
+            for client_socket in self.clients.values():
+                try:
+                    client_socket.send(pickle.dumps({
+                        'status': 'game_reset',
+                        "game_state": self.game_state
+                    }))
+                except Exception as e:
+                    self.logger.error(f'Error sending game reset: {e}')
+            time.sleep(0.05)
 
         self.logger.info("Game fully reset - returning to character selection")
 
