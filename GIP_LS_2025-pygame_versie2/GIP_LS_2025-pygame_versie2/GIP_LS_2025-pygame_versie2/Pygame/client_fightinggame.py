@@ -177,10 +177,12 @@ class GameClient:
                             self.winner = None
                             self.ready = False
                             self.character = None
+
                             self.predicted_player_state = None
                             self.current_opponent_state = None
                             self.is_jumping = False
                             self.jump_velocity = 0
+
                             if 'game_state' in response:
                                 self.game_state = response['game_state']
                             self.logger.info("Game reset received - movement variable reset")
@@ -753,6 +755,12 @@ class GameClient:
     def run(self):
         if self.connect_to_server():
             while self.connected and not self.server_error:
+                self.reset_requested = False
+                self.predicted_player_state = None
+                self.current_opponent_state = None
+                self.is_jumping = False
+                self.jump_velocity = 0
+                
                 self.select_character()
                 self.wait_for_match()
                 self.run_game()
